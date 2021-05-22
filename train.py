@@ -7,7 +7,7 @@ import dataset
 import model
 
 def main():
-    parser = argparse.ArgumentParser(description='PaperNet Trainer')
+    parser = argparse.ArgumentParser(description='Yaoyorozu PaperNet Trainer')
 
     #parser.add_argument('--root_dir', type=str, default='./')
     #parser.add_argument('--pretrain_name', type=str, default='pretrain')

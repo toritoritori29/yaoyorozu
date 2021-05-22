@@ -187,10 +187,10 @@ class Trainer():
         return epoch
 
     def to_onnx(self, output_dir):
-        dummy_input = torch.randn(10, 3, 256, 256)
+        dummy_input = torch.randn(1, 3, 256, 256)
         input_names = ["inputs"]
         output_names = ["heatmap", "regs"]
-        torch.onnx.export(self.model, dummy_input, output_dir, input_names=input_names, output_names=output_names)
+        torch.onnx.export(self.model, dummy_input, output_dir, input_names=input_names, output_names=output_names, opset_version=11)
 
 def loss_fn(y_pred, y_true):
     return focal_loss(y_pred, y_true, 2, 4)

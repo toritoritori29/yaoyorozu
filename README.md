@@ -1,6 +1,19 @@
-# ABC AI based correct checker
+# Yaoyorozu - AI based paper detector
 
-# Run on docker
+## How To Use
+
+
+To train model, run following command on terminal.
+``` bash
+python train.py
+```
+
+To convert trained onnx model to tfjs model, run follonwing script.
+```
+./scripts/convert
+```
+
+## Run on docker
 
 ```
 docker build -t Kami/Kami .

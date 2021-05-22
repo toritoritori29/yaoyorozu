@@ -1,0 +1,13 @@
+#!/bin/bash
+
+INPUT_PATH='./models/yaoyorozu.onnx'
+OUTPUT_TF='./models/yaoyorozu.pb'
+OUTPUT_JS='./models/yaoyorozu_js.pb'
+
+onnx-tf convert -i ${INPUT_PATH} -o ${OUTPUT_TF}
+
+tensorflowjs_converter \
+    --input_format=tf_saved_model \
+    --saved_model_tags=serve \
+    ${OUTPUT_TF} \
+    ${OUTPUT_JS}
