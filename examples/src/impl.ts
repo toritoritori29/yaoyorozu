@@ -177,10 +177,11 @@ export class WebcamCapture {
     this.video.height = height;
   }
 
-  start() {
+  start(isFront :boolean = false) {
     if (navigator.mediaDevices.getUserMedia) {
       const constrain = {
         video: {
+          facingMode: isFront? "user" : "environment",
           width: this.width,
           height: this.height,
         }

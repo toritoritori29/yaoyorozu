@@ -18,7 +18,7 @@
         width: 500,
         height: 500,
       }
-      let detecter = new yaoyorozu.Detect('/models/yaoyorozu_js.pb/model.json');
+      let detecter = new yaoyorozu.Detect('./models/yaoyorozu_js.pb/model.json');
       let canvas = document.getElementById("main-canvas");
       let context = canvas.getContext('2d');
       let cap = new yaoyorozu.WebcamCapture(resolution.width, resolution.height);

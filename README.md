@@ -12,9 +12,3 @@ To convert trained onnx model to tfjs model, run follonwing script.
 ```
 ./scripts/convert
 ```
-
-## Run on docker
-
-```
-docker build -t Kami/Kami .
-```
