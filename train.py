@@ -25,7 +25,7 @@ def main():
     parser.add_argument('--lr_step', type=str, default='90,120')
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--num_epochs', type=int, default=1000)
-    parser.add_argument('--early_stopping', type=int, default=10)
+    parser.add_argument('--early_stopping', type=int, default=150)
 
     parser.add_argument('--test_topk', type=int, default=100)
 
@@ -46,8 +46,9 @@ def main():
     val_ds = dataset.PaperDataset(cfg.test_data, width=cfg.img_size, height=cfg.img_size)
     val_dl = DataLoader(val_ds, batch_size=len(val_ds), shuffle=True)
 
+    learning_rate = cfg.lr
     resolution = [cfg.img_size, cfg.img_size]
-    trainer = model.Trainer(resolution, cfg.log_dir, lr=cfg.lr, log_interval=cfg.log_interval, lambda1=0.1)
+    trainer = model.Trainer(resolution, cfg.log_dir, lr=learning_rate, log_interval=cfg.log_interval, lambda1=0.1)
 
     onnx_path = os.path.join(cfg.model_dir, f'{cfg.model_name}.onnx')
     ckpt_path = os.path.join(cfg.model_dir, f'{cfg.model_name}.torch')
@@ -71,6 +72,11 @@ def main():
         if epoch - last_update >= cfg.early_stopping:
             print('Early stopping.')
             break
+
+        if epoch % 10 == 0:
+            learning_rate *= 0.9
+            trainer.update_lr(learning_rate)
+            print(f"[*] Update the learning rate to ${learning_rate}")
 
 
 if __name__ == "__main__":

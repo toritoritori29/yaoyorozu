@@ -25,7 +25,7 @@ class PaperNet(nn.Module):
             nn.Sigmoid()
         )
         self.regs = nn.Sequential(
-            nn.Conv2d(in_channels=32, out_channels=4, kernel_size=3, padding=1)
+            nn.Conv2d(in_channels=32, out_channels=2, kernel_size=3, padding=1)
         )
 
     def forward(self, x):
@@ -41,7 +41,7 @@ class Residual(nn.Module):
     """ Bottleneck Residual Module
     """
 
-    def __init__(self, inp_dims, out_dims):
+    def __init__(self, inp_dims, out_dims, dropout_ratio=0.3):
         super(Residual, self).__init__()
         bottleneck_size = out_dims//2
         self.relu = nn.ReLU()
@@ -50,6 +50,7 @@ class Residual(nn.Module):
         self.bn2 = nn.BatchNorm2d(bottleneck_size)
         self.conv2 = nn.Conv2d(bottleneck_size, bottleneck_size, 3, padding=1)
         self.bn3 = nn.BatchNorm2d(bottleneck_size)
+        self.dr = nn.Dropout2d(dropout_ratio)
         self.conv3 = nn.Conv2d(bottleneck_size, out_dims, 1)
 
         if inp_dims == out_dims:
@@ -67,6 +68,7 @@ class Residual(nn.Module):
         x = self.conv2(x)
         x = self.bn3(x)
         x = self.relu(x)
+        x = self.dr(x)
         x = self.conv3(x)
 
         if self.skip_layer is None:
@@ -176,6 +178,10 @@ class Trainer():
         loss /= size
         print(f"Validation Error: Avg loss: {loss:>8f} \n")
         return loss
+
+    def update_lr(self, lr):
+        for g in self.optimizer.param_groups:
+            g['lr'] = lr
 
     def checkpoint(self, output_path, epoch):
         torch.save({

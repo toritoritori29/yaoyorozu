@@ -11,7 +11,7 @@ import utils
 
 class PaperDataset(Dataset):
 
-    def __init__(self, annotation_dir, width=512, height=512, transform=None):
+    def __init__(self, annotation_dir, width=512, height=512, shrink_rate=1, transform=None):
         super(PaperDataset, self).__init__()
         # Data
         self.images = []
