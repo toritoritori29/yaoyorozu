@@ -13,7 +13,7 @@
       <button class="btn btn-primary" type="button" onclick="videoStart()">撮影開始</button>　
     </div>
     <p class="description"> Current Corner :<span id="pos"> </span> </p> 
-    <p class="description"> Current Corner :<span id="prob"> </span> </p> 
+    <p class="description"> Prob :<span id="prob"> </span> </p> 
   </body>
     <style type="text/css">
       .description {overflow:hidden;}
@@ -37,7 +37,7 @@
       let detecter = new yaoyorozu.Detect('./models/yaoyorozu_js.pb/model.json');
       let cap = new yaoyorozu.WebcamCapture(resolution.width, resolution.height);
       let corner_text = document.getElementById("pos");
-      let prob_text = document.getElementById("pos");
+      let prob_text = document.getElementById("prob");
       cap.start();
 
       function loop(timestamp) {
@@ -47,7 +47,9 @@
         let [heatmap, result, prob] = detecter.detect(image);
 
 
-        if (result && prob > 0.5) {
+        prob_text.innerText = prob;
+        corner_text.innerText = result;
+        if (result && prob > 0.3) {
           for (let i1=0; i1<4; i1++) {
 
             let i2 = (i1+1) % 4;
@@ -62,9 +64,7 @@
           }
         }
         window.requestAnimationFrame(ts => loop(ts));
-        corner_text.innerText = result;
       }
-      prob_text.inner_text
       window.requestAnimationFrame(ts => loop(ts));
     </script>
 </html>
