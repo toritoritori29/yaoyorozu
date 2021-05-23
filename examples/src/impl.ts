@@ -65,14 +65,14 @@ export class Detect {
     let channels = unstack(heatmap, 0);
     for (let i=0; i<channels.length; i++) {
       let c = channels[i].reshape([-1]);
-      let {values, indices} = topk(c, K);
+      let {values, indices} = topk(c, K, true);
 
       let idx_array = indices.arraySync() as number[];
       let pred_array = values.arraySync() as number[];
 
       for (let idx of idx_array) {
-        let w = idx % height;
-        let h = Math.floor(idx / height);
+        let w = idx % width;
+        let h = Math.floor(idx / width);
         pos_ls[i].push([w, h]);
       } 
       for (let pred of pred_array) {

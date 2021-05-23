@@ -11,15 +11,20 @@
     </div> 
     <div><button type="button" onclick="videoStart()">撮影開始</button>　
     <button type="button" onclick="videoStop()">撮影停止</button></div>
-    <p> Current Corner :<span id="pos"> </span> </p> 
+    <p class="description"> Current Corner :<span id="pos"> </span> </p> 
   </body>
+    <style type="text/css">
+      .description {overflow:hidden;}
+    </style>
     <script type="text/javascript">
 
       let canvas = document.getElementById("main-canvas");
       let context = canvas.getContext('2d');
       let cw = Math.min(window.innerWidth, 1000);
       let ch = Math.min(window.innerHeight, 1000);
+      cw = Math.min(ch, cw);
       ch = Math.min(ch, cw);
+
       canvas.width = cw;
       canvas.height = ch;
 

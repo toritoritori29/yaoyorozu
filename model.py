@@ -2,10 +2,11 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from torchvision.transforms import ToTensor, Lambda, Compose
+from torchvision.transforms import ToTensor, Lambda, Compose, Resize
 import matplotlib.pyplot as plt
 import torchvision.models as models
 from torch.utils.tensorboard import SummaryWriter
+import numpy as np
 
 import utils
 
@@ -186,7 +187,6 @@ class Trainer():
     def restore(self, ckpt_path):
         ckpt = torch.load(ckpt_path)
         self.model.load_state_dict(ckpt['model_state_dict'])
-        # self.optimizer.load_state_dict(ckpt['optimizer_state_dict'])
         epoch = ckpt['epoch']
         return epoch
 
@@ -195,6 +195,47 @@ class Trainer():
         input_names = ["inputs"]
         output_names = ["heatmap", "regs"]
         torch.onnx.export(self.model, dummy_input, output_dir, input_names=input_names, output_names=output_names, opset_version=11)
+
+class Predictor:
+    def __init__(self, input_width, input_height):
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.model = PaperNet().to(self.device)
+        self.input_width = input_width
+        self.input_height = input_height
+        self.resizer = Resize([input_height, input_width])
+
+    def predict(self, image):
+        """
+        Args:
+            image (np.ndarray): (H, W, C) orederd image.
+        """
+        w = image.shape[1]
+        h = image.shape[0]
+        rw = self.input_width / w
+        rh = self.input_height / h
+
+        # Predict
+        image = image.copy()
+        tensor = ToTensor()(image)
+        tensor = tensor.to(torch.float32)
+        tensor = self.resizer(tensor)
+        tensor = tensor.unsqueeze(0)
+        heatmap, regs = self.model(tensor)
+        corners = utils.get_corners(heatmap[0], 10)
+        print(corners)
+
+        # Fit corners to input image size.
+        resized = []
+        for c in corners:
+            x = int(c[0] / rw)
+            y = int(c[1] / rh)
+            resized.append((x, y))
+        return resized
+
+    def restore(self, ckpt_path):
+        ckpt = torch.load(ckpt_path)
+        self.model.load_state_dict(ckpt['model_state_dict'])
+
 
 def loss_fn(y_pred, y_true):
     return focal_loss(y_pred, y_true, 2, 4)

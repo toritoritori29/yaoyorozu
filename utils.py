@@ -27,9 +27,10 @@ def visualize_heatmap(input_image, pred_result):
     add = cv2.addWeighted(input_image, 0.3, hmap, 0.7, 0)
     return add
 
-def visiualize_edge(input_image, corners):
+def visiualize_edge(input_image, corners, torch_order=True):
     image = input_image.copy() * 255
-    image = image.transpose([1, 2, 0]).astype(np.float32)
+    if torch_order:
+        image = image.transpose([1, 2, 0]).astype(np.float32)
     image = cv2.UMat(image)
 
     assert len(corners) == 4
