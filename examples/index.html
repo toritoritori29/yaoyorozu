@@ -4,14 +4,16 @@
     <meta charset="utf-8">
     <title>Yaoyorozu Example</title>
     <script src="./dist/main.js"></script>
-
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-+0n0xVW2eSR5OomGNYDnhzAbDsOXxcvSN1TPprVMTNDbiYZCxYbOOl7+AMvyTG2x" crossorigin="anonymous">
   </head>
   <body>
     <div><canvas id="main-canvas" ></canvas>
     </div> 
-    <div><button type="button" onclick="videoStart()">撮影開始</button>　
-    <button type="button" onclick="videoStop()">撮影停止</button></div>
+    <div>
+      <button class="btn btn-primary" type="button" onclick="videoStart()">撮影開始</button>　
+    </div>
     <p class="description"> Current Corner :<span id="pos"> </span> </p> 
+    <p class="description"> Current Corner :<span id="prob"> </span> </p> 
   </body>
     <style type="text/css">
       .description {overflow:hidden;}
@@ -21,7 +23,7 @@
       let canvas = document.getElementById("main-canvas");
       let context = canvas.getContext('2d');
       let cw = Math.min(window.innerWidth, 1000);
-      let ch = Math.min(window.innerHeight, 1000);
+      let ch = Math.min(window.innerHeight, 1000) - 100;
       cw = Math.min(ch, cw);
       ch = Math.min(ch, cw);
 
@@ -34,14 +36,18 @@
       }
       let detecter = new yaoyorozu.Detect('./models/yaoyorozu_js.pb/model.json');
       let cap = new yaoyorozu.WebcamCapture(resolution.width, resolution.height);
-      let text = document.getElementById("pos");
+      let corner_text = document.getElementById("pos");
+      let prob_text = document.getElementById("pos");
       cap.start();
 
       function loop(timestamp) {
         let image = cap.capture();
+        context.clearRect(0, 0, cw, ch);
         context.putImageData(image, 0, 0, 0, 0, resolution.width, resolution.height);
-        let result = detecter.detect(image);
-        if (result) {
+        let [heatmap, result, prob] = detecter.detect(image);
+
+
+        if (result && prob > 0.5) {
           for (let i1=0; i1<4; i1++) {
 
             let i2 = (i1+1) % 4;
@@ -56,8 +62,9 @@
           }
         }
         window.requestAnimationFrame(ts => loop(ts));
-        text.innerText = result;
+        corner_text.innerText = result;
       }
+      prob_text.inner_text
       window.requestAnimationFrame(ts => loop(ts));
     </script>
 </html>

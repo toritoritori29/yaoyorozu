@@ -1,12 +1,15 @@
 
-import { Tensor, browser, GraphModel, loadGraphModel, tidy, expandDims, transpose, unstack, topk, div } from '@tensorflow/tfjs';
+import {
+  Tensor, Tensor2D, Tensor3D, browser, GraphModel, loadGraphModel, tidy,
+  expandDims, transpose, unstack, topk, div, maximum
+} from '@tensorflow/tfjs';
 
 export class Detect {
-  private model? :GraphModel;
-  private modelUrl :string;
-  private isInitialized :boolean;
+  private model?: GraphModel;
+  private modelUrl: string;
+  private isInitialized: boolean;
 
-  constructor(url :string) {
+  constructor(url: string) {
     this.modelUrl = url;
     this.isInitialized = false;
 
@@ -21,9 +24,9 @@ export class Detect {
   }
 
 
-  detect(img :ImageData) {
+  detect(img: ImageData) {
     if (!this.model) {
-      return null;
+      return [null, null];
     }
 
     const height = img.height;
@@ -41,31 +44,32 @@ export class Detect {
       return expandDims(img_tensor);
     });
 
-    const [heatmap, regs] = this.model.execute(batched) as Tensor[];
-    const result = this.decode(heatmap);
+    const [heatmap, regs] = this.model.execute(batched, ['heatmap', 'regs']) as Tensor[];
+    const [prob, result] = this.decode(heatmap);
+    let r = result as number[][];
     if (result) {
       // Resized to initial image size.
-      for (let i=0; i<result.length; i++) {
-        result[i][0] = result[i][0] / width_ratio;
-        result[i][1] = result[i][1] / height_ratio;
+      for (let i = 0; i < r.length; i++) {
+        r[i][0] = r[i][0] / width_ratio;
+        r[i][1] = r[i][1] / height_ratio;
       }
     }
-    return result;
+    return [heatmap, result, prob];
   }
 
-  decode(heatmap: Tensor, iterationLimit = 200) :number[][] | null{
+  decode(heatmap: Tensor, iterationLimit = 500) {
     const K = 5;
 
-    let pred_ls :number[][] = [[], [], [], []];
-    let pos_ls :number[][][] = [[], [], [], []];
+    let pred_ls: number[][] = [[], [], [], []];
+    let pos_ls: number[][][] = [[], [], [], []];
 
     let [batch, channel, height, width] = heatmap.shape;
     heatmap = heatmap.reshape([channel, height, width]);
 
     let channels = unstack(heatmap, 0);
-    for (let i=0; i<channels.length; i++) {
+    for (let i = 0; i < channels.length; i++) {
       let c = channels[i].reshape([-1]);
-      let {values, indices} = topk(c, K, true);
+      let { values, indices } = topk(c, K, true);
 
       let idx_array = indices.arraySync() as number[];
       let pred_array = values.arraySync() as number[];
@@ -74,19 +78,19 @@ export class Detect {
         let w = idx % width;
         let h = Math.floor(idx / width);
         pos_ls[i].push([w, h]);
-      } 
+      }
       for (let pred of pred_array) {
         pred_ls[i].push(pred);
       }
     }
 
     let initial = [0, 0, 0, 0];
-    let queue :number[][]= [];
+    let queue: number[][] = [];
     let visit = new Set();
     queue.push(initial);
 
     let count = 0;
-    while(queue.length > 0) {
+    while (queue.length > 0) {
       let top = queue.shift();
 
       // Error and visit check.
@@ -108,15 +112,15 @@ export class Detect {
       count++;
 
       let violation = false;
-      let corners :number[][] = [];
-      let pred :number[] = [];
-      for (let i=0; i<4; i++) {
-        let n = top[i]; 
+      let corners: number[][] = [];
+      let pred_sum = 0;
+      for (let i = 0; i < 4; i++) {
+        let n = top[i];
         if (top[i] >= K) {
           violation = violation || true;
         } else {
           corners.push(pos_ls[i][n]);
-          pred.push(pred_ls[i][n]);
+          pred_sum += pred_ls[i][n];
         }
       }
       if (violation) {
@@ -125,24 +129,26 @@ export class Detect {
 
       // Check corners can construct a valid rectangle.
       if (this.isValidRectangle(corners)) {
-        return corners;
+        return [pred_sum/4, corners];
       } else {
-        queue.push([top[0]+1, top[1], top[2], top[3]]);
-        queue.push([top[0], top[1]+1, top[2], top[3]]);
-        queue.push([top[0], top[1], top[2]+1, top[3]]);
-        queue.push([top[0], top[1], top[2], top[3]+1]);
+        queue.push([top[0] + 1, top[1], top[2], top[3]]);
+        queue.push([top[0], top[1] + 1, top[2], top[3]]);
+        queue.push([top[0], top[1], top[2] + 1, top[3]]);
+        queue.push([top[0], top[1], top[2], top[3] + 1]);
       }
     }
-    return null;
+    return [0, null];
   }
+
+
 
   /**
    * Check if corne
    * @param corners List of [x, y] pairs.
    */
-  isValidRectangle(corners :number[][]) :boolean{
+  isValidRectangle(corners: number[][]): boolean {
     let result = true;
-    for (let i1=0; i1<corners.length; i1++) {
+    for (let i1 = 0; i1 < corners.length; i1++) {
       let i2 = (i1 + 1) % corners.length;
       let i3 = (i2 + 1) % corners.length;
       let v1x = corners[i2][0] - corners[i1][0];
@@ -161,27 +167,27 @@ export class WebcamCapture {
    * Wrapper for  
    */
 
-  private stream? :MediaStream;
-  private video :HTMLVideoElement;
-  private context :CanvasRenderingContext2D | null;
-  private width :number;
-  private height :number;
+  private stream?: MediaStream;
+  private video: HTMLVideoElement;
+  private context: CanvasRenderingContext2D | null;
+  private width: number;
+  private height: number;
 
   constructor(width: number, height: number) {
     this.width = width;
     this.height = height;
-    
+
     this.context = document.createElement('canvas').getContext('2d');
     this.video = document.createElement("video");
     this.video.width = width;
     this.video.height = height;
   }
 
-  start(isFront :boolean = false) {
+  start(isFront: boolean = false) {
     if (navigator.mediaDevices.getUserMedia) {
       const constrain = {
         video: {
-          facingMode: isFront? "user" : "environment",
+          facingMode: isFront ? "user" : "environment",
           width: this.width,
           height: this.height,
         }
@@ -196,7 +202,7 @@ export class WebcamCapture {
   stop() {
   }
 
-  capture() :ImageData{
+  capture(): ImageData {
     if (!this.context) {
       throw new Error('Failed to obtain 2d context.')
     }
@@ -208,9 +214,24 @@ export class WebcamCapture {
   }
 }
 
-/*
-export function toTensor(image :ImageData) {
-    const shape = [image.height, image.width, 4]
-    return new Tensor(new Float32Array(image.data), "float32", [image.width, image.height, 4])
+export function heatmapImage(heatmap: Tensor, canvas: HTMLCanvasElement) {
+  let channels = unstack(heatmap, 0);
+
+  let result = null;
+  for (let c of channels) {
+    if (!result) {
+      result = c;
+    } else {
+      result = maximum(result, c);
+    }
+  }
+  if (!result) {
+    throw new Error('Failed to generate heatmap tensor.');
+  }
+
+  result = transpose(result, [1, 2, 0]);
+  result = result.resizeBilinear([canvas.height, canvas.width]) as Tensor3D;
+  console.log(result?.shape)
+  browser.toPixels(result, canvas)
+  return result?.array()
 }
-*/
