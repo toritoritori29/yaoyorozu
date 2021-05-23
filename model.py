@@ -109,7 +109,8 @@ class Trainer():
     TAG_EDGES = "EDGES"
     TAG_HEATMAP = "HEATMAP"
 
-    def __init__(self, log_dir, lr, log_interval, lambda1):
+    def __init__(self, input_resolution, log_dir, lr, log_interval, lambda1):
+        self.input_resolution = input_resolution
         self.lr = lr
         self.log_interval = log_interval
         self.lambda1 = lambda1
@@ -190,7 +191,7 @@ class Trainer():
         return epoch
 
     def to_onnx(self, output_dir):
-        dummy_input = torch.randn(1, 3, 256, 256)
+        dummy_input = torch.randn(1, 3, self.input_resolution[0], self.input_resolution[1])
         input_names = ["inputs"]
         output_names = ["heatmap", "regs"]
         torch.onnx.export(self.model, dummy_input, output_dir, input_names=input_names, output_names=output_names, opset_version=11)

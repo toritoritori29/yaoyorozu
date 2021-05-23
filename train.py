@@ -46,7 +46,8 @@ def main():
     val_ds = dataset.PaperDataset(cfg.test_data, width=cfg.img_size, height=cfg.img_size)
     val_dl = DataLoader(val_ds, batch_size=len(val_ds), shuffle=True)
 
-    trainer = model.Trainer(cfg.log_dir, lr=cfg.lr, log_interval=cfg.log_interval, lambda1=0.1)
+    resolution = [cfg.img_size, cfg.img_size]
+    trainer = model.Trainer(resolution, cfg.log_dir, lr=cfg.lr, log_interval=cfg.log_interval, lambda1=0.1)
 
     onnx_path = os.path.join(cfg.model_dir, f'{cfg.model_name}.onnx')
     ckpt_path = os.path.join(cfg.model_dir, f'{cfg.model_name}.torch')

@@ -7,20 +7,27 @@
 
   </head>
   <body>
-    <div><canvas id="main-canvas", width='500px' height='500px'></canvas>
+    <div><canvas id="main-canvas" ></canvas>
     </div> 
     <div><button type="button" onclick="videoStart()">撮影開始</button>　
     <button type="button" onclick="videoStop()">撮影停止</button></div>
     <p> Current Corner :<span id="pos"> </span> </p> 
   </body>
     <script type="text/javascript">
-      const resolution = {
-        width: 500,
-        height: 500,
-      }
-      let detecter = new yaoyorozu.Detect('./models/yaoyorozu_js.pb/model.json');
+
       let canvas = document.getElementById("main-canvas");
       let context = canvas.getContext('2d');
+      let cw = Math.min(window.innerWidth, 1000);
+      let ch = Math.min(window.innerHeight, 1000);
+      ch = Math.min(ch, cw);
+      canvas.width = cw;
+      canvas.height = ch;
+
+      const resolution = {
+        width: cw,
+        height: ch,
+      }
+      let detecter = new yaoyorozu.Detect('./models/yaoyorozu_js.pb/model.json');
       let cap = new yaoyorozu.WebcamCapture(resolution.width, resolution.height);
       let text = document.getElementById("pos");
       cap.start();
