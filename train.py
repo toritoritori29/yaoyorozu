@@ -18,13 +18,14 @@ def main():
     parser.add_argument('--test_data', type=str, default='./data/test')
     parser.add_argument('--model_dir', type=str, default='models/')
 
-    parser.add_argument('--img_size', type=int, default=256)
+    parser.add_argument('--img_size', type=int, default=128)
     parser.add_argument('--split_ratio', type=float, default=1.0)
 
     parser.add_argument('--lr', type=float, default=5e-4)
     parser.add_argument('--lr_step', type=str, default='90,120')
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--num_epochs', type=int, default=1000)
+    parser.add_argument('--early_stopping', type=int, default=10)
 
     parser.add_argument('--test_topk', type=int, default=100)
 
@@ -55,12 +56,20 @@ def main():
         last_epoch = trainer.restore(ckpt_path)
         initial_epoch = last_epoch + 1
 
+    best_loss = 9999999999
+    last_update = initial_epoch
     for epoch in range(initial_epoch, cfg.num_epochs+1):
-        trainer.train(epoch, train_dl, val_dl)
+        loss = trainer.train(epoch, train_dl, val_dl)
+        if loss < best_loss:
+            best_loss = loss
+            last_update = epoch
+            # Save Model
+            trainer.to_onnx(onnx_path)
+            trainer.checkpoint(ckpt_path, epoch)
 
-        # Save Model
-        trainer.to_onnx(onnx_path)
-        trainer.checkpoint(ckpt_path, epoch)
+        if epoch - last_update >= cfg.early_stopping:
+            print('Early stopping.')
+            break
 
 
 if __name__ == "__main__":

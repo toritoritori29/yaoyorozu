@@ -146,7 +146,9 @@ class Trainer():
                 # Log
                 print(f'{batch_idx+1}/{len(train_dl)} - train loss : {loss}')
         if val_dl:
-            self.test(epoch, val_dl)
+            loss = self.test(epoch, val_dl)
+            return loss
+        return 0
 
 
     def test(self, global_step, val_dl):
@@ -171,6 +173,7 @@ class Trainer():
                     self.writer.add_image(self.TAG_EDGES, edges, global_step)
         loss /= size
         print(f"Validation Error: Avg loss: {loss:>8f} \n")
+        return loss
 
     def checkpoint(self, output_path, epoch):
         torch.save({

@@ -28,8 +28,8 @@ export class Detect {
 
     const height = img.height;
     const width = img.width;
-    const resized_height = 256;
-    const resized_width = 256;
+    const resized_height = 128;
+    const resized_width = 128;
     const height_ratio = resized_height / height;
     const width_ratio = resized_width / width;
 
