@@ -155,8 +155,11 @@ export class Detect {
       let v1y = corners[i2][1] - corners[i1][1];
       let v2x = corners[i3][0] - corners[i2][0];
       let v2y = corners[i3][1] - corners[i2][1];
+      let cos = (v1x * v2x + v1y * v2y) / (Math.sqrt(v1x*v1x+v1y*v1y) * Math.sqrt(v2x*v2x+v2y*v2y))
+      console.log(cos);
       let cross = v1x * v2y - v1y * v2x;
-      result = result && (cross < 0);
+      let angle = (-0.3 < cos) || (cos < 0.3)
+      result = result && (cross < 0) && angle;
     }
     return result;
   }
