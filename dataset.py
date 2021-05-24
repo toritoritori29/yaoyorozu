@@ -16,6 +16,7 @@ class PaperDataset(Dataset):
         # Data
         self.images = []
         self.heatmaps = []
+        self.regmaps = []
 
         # Configure
         self.width = width
@@ -26,19 +27,24 @@ class PaperDataset(Dataset):
         to_tensor = ToTensor()
 
         # Preprocess
+        print("[*] Loading data...")
         raw_files = list(annt.load(annotation_dir))
         for item in raw_files:
             item = item.resize(self.width, self.height)
             image = item.image
-            heatmap = create_heatmap((self.width, self.height, self.num_class), item.boxes)
-            # assert image.shape == (3, self.height, self.width)
-            # assert heatmap.shape == (self.num_class, self.height, self.width)
+
+            x_shrink = 1 / shrink_rate
+            y_shrink = 1 / shrink_rate
+            heatmap = create_heatmap((self.width, self.height), item.boxes, self.num_class, x_ratio=x_shrink, y_ratio=y_shrink)
+            regmap = create_regmap((self.width, self.height), item.boxes, x_shrink, y_shrink)
 
             image = to_tensor(image).to(torch.float32)
             heatmap = to_tensor(heatmap).to(torch.float32)
+            regmap = to_tensor(regmap).to(torch.float32)
 
             self.images.append(image)
             self.heatmaps.append(heatmap)
+            self.regmaps.append(regmap)
 
     def __len__(self):
         return len(self.images)
@@ -46,9 +52,11 @@ class PaperDataset(Dataset):
     def __getitem__(self, idx):
         image = self.images[idx]
         heatmap = self.heatmaps[idx]
+        regmap = self.regmaps[idx]
         obj = {
             'image': image,
             'heatmap': heatmap,
+            'regmap': regmap,
         }
         if self.transform:
             obj = self.transform(obj)
@@ -57,15 +65,19 @@ class PaperDataset(Dataset):
     def show(self, idx):
         pass
 
-def create_heatmap(shape, polygons, mask="gaussian", mask_radius=25):
-    height, width, channels = shape
-    heatmap = np.zeros(shape=shape, dtype=np.float16)
-
+def create_heatmap(shape, polygons, class_num, mask="gaussian", mask_radius=25, x_ratio=1, y_ratio=1):
+    """ Create heatmap from specfied polygons.
+    Args:
+        shape (tuple): Input image shape
+        polygons (Polygon): Polygon data.
+        class_num (number): Number of classes.
+    """
+    height, width = shape
+    heatmap = np.zeros(shape=(height, width, class_num), dtype=np.float16)
     msize = mask_radius*2
     mask = gaussian_mask(msize, msize, 10)
-
     for polygon in polygons:
-        assert len(polygon.points) == channels
+        assert len(polygon.points) == class_num
         for idx, point in enumerate(polygon.points):
             x, y = [int(p) for p in point]
             # Compute point.
@@ -74,7 +86,44 @@ def create_heatmap(shape, polygons, mask="gaussian", mask_radius=25):
             cropped_heatmap = heatmap[y-top:y+bottom, x-left:x+right, idx]
             cropped_mask = mask[mask_radius-top:mask_radius+bottom, mask_radius-left:mask_radius+right]
             heatmap[y-top:y+bottom, x-left:x+right, idx] = np.maximum(cropped_heatmap, cropped_mask)
+    nw = int(width * x_ratio)
+    nh = int(height * y_ratio)
     return heatmap
+
+def create_regmap(shape, boxes, x_ratio=1, y_ratio=1, r=3):
+    """ Create regmap from specfied polygons.
+    Args:
+        shape (tuple): Input image shape ordered by (H x W).
+        boxes (Polygon): Polygon data.
+        x_ratio (float): Shrink ratio along to x-axis.
+        y_ratio (float): Shrink ratio along to y-axis.
+        r: (int): Mask size to remain. Only pixels in r from center will be remain to output.
+    Returns:
+        np.ndarray: Regmap which shapes is (H', W', 2)
+    """
+    px = shape[1]
+    py = shape[0]
+    nx = int(px * x_ratio)
+    ny = int(py * y_ratio)
+    regmap = np.zeros(shape=(ny, nx, 2), dtype=np.float16)
+
+    x_array = np.arange(0, nx)
+    y_array = np.arange(0, ny)
+    gridx, gridy = np.meshgrid(x_array, y_array)
+    for polygon in boxes:
+        for idx, point in enumerate(polygon.points):
+            x, y = point
+            x = x * x_ratio
+            y = y * y_ratio
+            gx = x - gridx
+            gy = y - gridy
+            rad = (gx * gx + gy * gy) <= r * r
+            gx = gx * rad
+            gy = gy * rad
+            regmap[:, :, 0] = gx
+            regmap[:, :, 1] = gy
+    return regmap
+
 
 class RandomRotate():
     def __init__(self, deg_range, seed=43):
@@ -150,7 +199,8 @@ class RandomColor():
         
         return {
             'image': adj_image,
-            'heatmap': sample['heatmap']
+            'heatmap': sample['heatmap'],
+            'regmap': sample['regmap']
         }
 
     

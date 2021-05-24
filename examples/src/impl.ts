@@ -24,6 +24,12 @@ export class Detect {
   }
 
 
+  /**
+   * Find paper area corners fron ImageData
+   * 
+   * @param {ImageData} img 
+   * @returns {number[][]} List of corner's coordinate.
+   */
   detect(img: ImageData) {
     if (!this.model) {
       return [null, null];
@@ -44,8 +50,8 @@ export class Detect {
       return expandDims(img_tensor);
     });
 
-    const [heatmap, regs] = this.model.execute(batched) as Tensor[];
-    const [prob, result] = this.decode(heatmap);
+    const [regmap, heatmap] = this.model.execute(batched) as Tensor[];
+    const [prob, result] = this.decode(heatmap, regmap);
     let r = result as number[][];
     if (result) {
       // Resized to initial image size.
@@ -57,7 +63,14 @@ export class Detect {
     return [heatmap, result, prob];
   }
 
-  decode(heatmap: Tensor, iterationLimit = 500) {
+  /**
+   * Decode predicted result. 
+   * 
+   * @param heatmap B x C x H x W Tensor
+   * @param regmap B x 2 x H x W Tensor
+   * @param iterationLimit 
+   */
+  decode(heatmap: Tensor, regmap: Tensor, iterationLimit = 500) {
     const K = 5;
 
     let pred_ls: number[][] = [[], [], [], []];
@@ -65,7 +78,10 @@ export class Detect {
 
     let [batch, channel, height, width] = heatmap.shape;
     heatmap = heatmap.reshape([channel, height, width]);
+    regmap = regmap.reshape([2, height, width]);
+    let reg_arr = regmap.arraySync() as number[][][];
 
+    // List top k indices and convert to x, y coordinate.
     let channels = unstack(heatmap, 0);
     for (let i = 0; i < channels.length; i++) {
       let c = channels[i].reshape([-1]);
@@ -84,6 +100,7 @@ export class Detect {
       }
     }
 
+    // BFS to find valid rectangle.
     let initial = [0, 0, 0, 0];
     let queue: number[][] = [];
     let visit = new Set();
@@ -119,7 +136,12 @@ export class Detect {
         if (top[i] >= K) {
           violation = violation || true;
         } else {
-          corners.push(pos_ls[i][n]);
+          let [x, y] = pos_ls[i][n];
+          const dx = reg_arr[0][y][x]
+          const dy = reg_arr[0][y][x]
+          x += dx;
+          y += dy;
+          corners.push([x, y])
           pred_sum += pred_ls[i][n];
         }
       }
@@ -141,10 +163,11 @@ export class Detect {
   }
 
 
-
   /**
-   * Check if corne
+   * Check if valid rectangle can be generated from corner list.
+   * 
    * @param corners List of [x, y] pairs.
+   * @returns {boolean} True if the recangle can be generate.
    */
   isValidRectangle(corners: number[][]): boolean {
     let result = true;
@@ -156,7 +179,6 @@ export class Detect {
       let v2x = corners[i3][0] - corners[i2][0];
       let v2y = corners[i3][1] - corners[i2][1];
       let cos = (v1x * v2x + v1y * v2y) / (Math.sqrt(v1x*v1x+v1y*v1y) * Math.sqrt(v2x*v2x+v2y*v2y))
-      console.log(cos);
       let cross = v1x * v2y - v1y * v2x;
       let angle = (-0.3 < cos) || (cos < 0.3)
       result = result && (cross < 0) && angle;

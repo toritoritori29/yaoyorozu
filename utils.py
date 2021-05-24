@@ -40,7 +40,7 @@ def visiualize_edge(input_image, corners, torch_order=True):
     image = image.get().astype(np.uint8)
     return image
 
-def get_corners(scores, K=10):
+def get_corners(scores, regmaps=None, K=10):
     """
     Args:
         scores (torch.Tensor)
@@ -76,6 +76,11 @@ def get_corners(scores, K=10):
             idx = front[c]
             x = int(x_cands[c][idx].item())
             y = int(y_cands[c][idx].item())
+            if regmaps is not None:
+                dx = regmaps[0, y, x].item()
+                dy = regmaps[1, y, x].item()
+                x += dx
+                y += dy
             corners.append((x, y))
 
         # If corners are valid rectangle, return corners 

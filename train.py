@@ -33,10 +33,11 @@ def main():
     parser.add_argument('--val_interval', type=int, default=5)
     cfg = parser.parse_args()
 
+    # Formation transform doesn't support regmaps.
     transforms = torchvision.transforms.Compose([
-        dataset.RandomRotate(20),
-        dataset.RandomScale(0.9, 1.),
-        dataset.RandomShear(-5, 5),
+        # dataset.RandomRotate(20),
+        # dataset.RandomScale(0.9, 1.),
+        # dataset.RandomShear(-5, 5),
         dataset.RandomColor(0.9, 1.1),
     ])
 
@@ -73,10 +74,11 @@ def main():
             print('Early stopping.')
             break
 
-        if epoch % 10 == 0:
+        if epoch % 20 == 0:
             learning_rate *= 0.9
             trainer.update_lr(learning_rate)
             print(f"[*] Update the learning rate to ${learning_rate}")
+    print(f"[*] Best score: ${best_loss} - epoch ${last_update}")
 
 
 if __name__ == "__main__":

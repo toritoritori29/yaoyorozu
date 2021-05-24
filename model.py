@@ -118,6 +118,10 @@ class Trainer():
         self.log_interval = log_interval
         self.lambda1 = lambda1
 
+        # Constants
+        self.focal_loss_alpha = 2
+        self.focal_loss_beta = 4
+
         # Setup model.
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model = PaperNet().to(self.device)
@@ -142,7 +146,9 @@ class Trainer():
             hmap, regs = outputs
 
             self.optimizer.zero_grad()
-            loss = self.loss_fn(hmap, batch["heatmap"])
+            f_loss = focal_loss(hmap, batch["heatmap"], self.focal_loss_alpha, self.focal_loss_beta)
+            r_loss = reg_loss(regs, batch["regmap"])
+            loss = f_loss + r_loss
             loss.backward()
             self.optimizer.step()
 
@@ -157,11 +163,14 @@ class Trainer():
 
     def test(self, global_step, val_dl):
         size = len(val_dl)
-        loss = 0
+        f_loss = 0
+        r_loss = 0
         with torch.no_grad():
             for idx, batch in enumerate(val_dl):
                 hmap_pred, regs_pred = self.model(batch['image'])
-                loss += self.loss_fn(hmap_pred, batch["heatmap"])
+                loss += self.loss_fn(hmap_pred, batch["heatmap"], regs_pred, batch['regmap'])
+                f_loss += focal_loss(hmap, batch["heatmap"], self.focal_loss_alpha, self.focal_loss_beta)
+                r_loss += reg_loss(regs, batch["regmap"])
                 # Log to tensorboard
                 if idx == 0:
                     image_np = batch['image'].numpy()
@@ -175,8 +184,9 @@ class Trainer():
                     edges = utils.visiualize_edge(image_np[0], corners)
                     edges = edges.transpose([2, 0, 1]) / 255.
                     self.writer.add_image(self.TAG_EDGES, edges, global_step)
-        loss /= size
-        print(f"Validation Error: Avg loss: {loss:>8f} \n")
+
+        loss = (f_loss + r_loss) / size
+        print(f"Validation Error: Avg loss: {loss:>8f} Focal loss: {f_loss:>8f} Reg loss: {r_loss:>8f}\n")
         return loss
 
     def update_lr(self, lr):
@@ -227,7 +237,7 @@ class Predictor:
         tensor = self.resizer(tensor)
         tensor = tensor.unsqueeze(0)
         heatmap, regs = self.model(tensor)
-        corners = utils.get_corners(heatmap[0], 10)
+        corners = utils.get_corners(heatmap[0], regmaps=regs[0], K=10)
         print(corners)
 
         # Fit corners to input image size.
@@ -243,8 +253,8 @@ class Predictor:
         self.model.load_state_dict(ckpt['model_state_dict'])
 
 
-def loss_fn(y_pred, y_true):
-    return focal_loss(y_pred, y_true, 2, 4)
+def loss_fn(y_pred, y_true, reg_pred, reg_true):
+    return focal_loss(y_pred, y_true, 2, 4) + reg_loss(reg_pred, reg_true)
     
 
 def focal_loss(y_pred, y_true, alpha, beta, eps=1e-5):
@@ -266,6 +276,13 @@ def focal_loss(y_pred, y_true, alpha, beta, eps=1e-5):
     loss = -1 * (neg_loss + pos_loss)
     assert pos_num.item() > 0, y_true.max().item()
     return loss.sum() / pos_num
+
+def reg_loss(y_pred, y_true):
+    pos = y_true.ne(0.).float()
+    loss = torch.nn.SmoothL1Loss(reduction='none')(y_pred, y_true)
+    loss = pos * loss
+    loss = loss.sum() / pos.sum()
+    return loss
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model = PaperNet().to(device)
