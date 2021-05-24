@@ -216,6 +216,7 @@ class Predictor:
     def __init__(self, input_width, input_height):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model = PaperNet().to(self.device)
+        self.model.eval()
         self.input_width = input_width
         self.input_height = input_height
         self.resizer = Resize([input_height, input_width])
