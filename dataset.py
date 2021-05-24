@@ -11,12 +11,17 @@ import utils
 
 class PaperDataset(Dataset):
 
-    def __init__(self, annotation_dir, width=512, height=512, shrink_rate=1, transform=None):
+    def __init__(self, annotation_dir, width=512, height=512, shrink_rate=1, transform=None, R=8):
+        """
+        Args:
+            annotation_dir: Dataset directory formatted . 
+        """
         super(PaperDataset, self).__init__()
         # Data
         self.images = []
         self.heatmaps = []
         self.regmaps = []
+        self.vecmaps = []
 
         # Configure
         self.width = width
@@ -36,15 +41,18 @@ class PaperDataset(Dataset):
             x_shrink = 1 / shrink_rate
             y_shrink = 1 / shrink_rate
             heatmap = create_heatmap((self.width, self.height), item.boxes, self.num_class, x_ratio=x_shrink, y_ratio=y_shrink)
-            regmap = create_regmap((self.width, self.height), item.boxes, x_shrink, y_shrink)
+            regmap = create_regmap((self.width, self.height), item.boxes, x_shrink, y_shrink, r=R)
+            vecmap = create_vector((self.width, self.height), item.boxes, r=R) 
 
             image = to_tensor(image).to(torch.float32)
             heatmap = to_tensor(heatmap).to(torch.float32)
             regmap = to_tensor(regmap).to(torch.float32)
+            vecmap = to_tensor(vecmap).to(torch.float32)
 
             self.images.append(image)
             self.heatmaps.append(heatmap)
             self.regmaps.append(regmap)
+            self.vecmaps.append(vecmap)
 
     def __len__(self):
         return len(self.images)
@@ -53,10 +61,12 @@ class PaperDataset(Dataset):
         image = self.images[idx]
         heatmap = self.heatmaps[idx]
         regmap = self.regmaps[idx]
+        vecmap = self.vecmaps[idx]
         obj = {
             'image': image,
             'heatmap': heatmap,
             'regmap': regmap,
+            'vecmap': vecmap,
         }
         if self.transform:
             obj = self.transform(obj)
@@ -90,7 +100,7 @@ def create_heatmap(shape, polygons, class_num, mask="gaussian", mask_radius=25, 
     nh = int(height * y_ratio)
     return heatmap
 
-def create_regmap(shape, boxes, x_ratio=1, y_ratio=1, r=3):
+def create_regmap(shape, boxes, x_ratio=1, y_ratio=1, r=1):
     """ Create regmap from specfied polygons.
     Args:
         shape (tuple): Input image shape ordered by (H x W).
@@ -117,12 +127,45 @@ def create_regmap(shape, boxes, x_ratio=1, y_ratio=1, r=3):
             y = y * y_ratio
             gx = x - gridx
             gy = y - gridy
-            rad = (gx * gx + gy * gy) <= r * r
+            rad = (gx * gx + gy * gy) < r * r
             gx = gx * rad
             gy = gy * rad
-            regmap[:, :, 0] = gx
-            regmap[:, :, 1] = gy
+            regmap[:, :, 0] += gx
+            regmap[:, :, 1] += gy
     return regmap
+
+
+def create_vector(shape, boxes, x_ratio=1, y_ratio=1, r=1):
+    """ Create long-span vector features from polygons.
+
+    Warning:
+        Shrink function is not implemented!
+    """
+    px = shape[1]
+    py = shape[0]
+    nx = int(px * x_ratio)
+    ny = int(py * y_ratio)
+    vecmap = np.zeros(shape=(ny, nx, 2), dtype=np.float16)
+
+    x_array = np.arange(0, nx)
+    y_array = np.arange(0, ny)
+    gridx, gridy = np.meshgrid(x_array, y_array)
+
+    for polygon in boxes:
+        points = polygon.points
+        for i0 in range(len(points)):
+            i1 = (i0 + 1) % len(points)
+            x0 = points[i0][0]
+            y0 = points[i0][1]
+            vx = (points[i1][0] - points[i0][0]) / nx
+            vy = (points[i1][1] - points[i0][1]) / ny
+            
+            gx = gridx - x0
+            gy = gridy - y0
+            mask = (gx * gx + gy * gy) < r * r
+            vecmap[:, :, 0] += mask * vx
+            vecmap[:, :, 1] += mask * vy
+    return vecmap
 
 
 class RandomRotate():
@@ -200,7 +243,8 @@ class RandomColor():
         return {
             'image': adj_image,
             'heatmap': sample['heatmap'],
-            'regmap': sample['regmap']
+            'regmap': sample['regmap'],
+            'vecmap': sample['vecmap']
         }
 
     

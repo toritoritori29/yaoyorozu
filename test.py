@@ -13,6 +13,7 @@ def main():
     parser.add_argument('--img_size', type=int, default=128)
     parser.add_argument('--model_name', type=str, default='yaoyorozu')
     parser.add_argument('--model_dir', type=str, default='models/')
+    parser.add_argument('--method', type=str, default='heatmap')
     cfg = parser.parse_args()
 
     ckpt_path = os.path.join(cfg.model_dir, f'{cfg.model_name}.torch')
@@ -25,8 +26,7 @@ def main():
         print(f"Failed to read ${cfg.image_path}. Check whether file exists.")
 
     image = image / 255.
-    corners = predictor.predict(image)
-    print(corners)
+    corners = predictor.predict(image, method=cfg.method)
     result = utils.visiualize_edge(image, corners, torch_order=False)
     cv2.imshow('Result', result)
     cv2.waitKey()

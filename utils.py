@@ -40,14 +40,14 @@ def visiualize_edge(input_image, corners, torch_order=True):
     image = image.get().astype(np.uint8)
     return image
 
-def get_corners(scores, regmaps=None, K=10):
+def get_corners_by_heatmap(scores, regmaps=None, K=10):
     """
     Args:
         scores (torch.Tensor)
     """
     channel, height, width = scores.size()
     # Preprocess
-    socres = nms(scores, kernel_size=5)
+    # socres = nms(scores, kernel_size=5)
 
     x_cands = []
     y_cands = []
@@ -91,6 +91,49 @@ def get_corners(scores, regmaps=None, K=10):
             nxt[c] += 1
             queue.append(tuple(nxt))
     return [(0, 0), (0, 0), (0, 0), (0, 0)]
+
+def get_corners_by_vector(heatmap, regmap, vecmap, K=10):
+    """ Detect paper corners by vector based method.
+    """
+    channel, height, width = heatmap.shape
+
+    x_cands = []
+    y_cands = []
+    # List top-k scored positions.
+    for i in range(channel):
+        hi = heatmap[i, :, :]
+        topk_scores, topk_inds = torch.topk(hi.view(-1), k=K)
+        topk_y = (topk_inds // width).float()
+        topk_x = (topk_inds % width).float()
+        y_cands.append(topk_y)
+        x_cands.append(topk_x)
+
+    for i in range(K):
+        x = int(x_cands[0][i].item())
+        y = int(y_cands[0][i].item())
+        dx = regmap[0][y][x].item()
+        dy = regmap[1][y][x].item()
+
+        corners = [(x+dx, y+dy)]
+        prob = heatmap[0][y][x].item()
+        for i in range(3):
+            rx = x + vecmap[0][y][x].item() * width # Raw next x
+            ry = y + vecmap[1][y][x].item() * height # Raw next y
+            cx = int(np.clip(rx, 0, width-1)) # Clipped rx
+            cy = int(np.clip(ry, 0, height-1)) # Clipped ry
+            dx = regmap[0][cy][cx].item()
+            dy = regmap[1][cy][cx].item()
+
+            # Update coodinate by offset
+            rx = rx + dx
+            ry = ry + dy
+            x = int(np.clip(rx, 0, width-1)) # Clipped rx
+            y = int(np.clip(ry, 0, height-1)) # Clipped ry
+            corners.append((rx, ry))
+            prob += heatmap[i+1, y, x]
+        prob /= 4
+        return corners
+    return None
 
 def is_valid_rectangle(corners):
     for i0 in range(len(corners)):
