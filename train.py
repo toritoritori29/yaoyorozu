@@ -19,15 +19,13 @@ def main():
     parser.add_argument('--model_dir', type=str, default='models/')
 
     parser.add_argument('--img_size', type=int, default=128)
-    parser.add_argument('--split_ratio', type=float, default=1.0)
 
     parser.add_argument('--lr', type=float, default=5e-4)
-    parser.add_argument('--lr_step', type=str, default='90,120')
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--num_epochs', type=int, default=1000)
-    parser.add_argument('--early_stopping', type=int, default=150)
+    parser.add_argument('--early_stopping', type=int, default=50)
+    parser.add_argument('--dropout_ratio', type=int, default=0.4)
 
-    parser.add_argument('--test_topk', type=int, default=100)
 
     parser.add_argument('--log_interval', type=int, default=1)
     parser.add_argument('--val_interval', type=int, default=5)
@@ -49,7 +47,9 @@ def main():
 
     learning_rate = cfg.lr
     resolution = [cfg.img_size, cfg.img_size]
-    trainer = model.Trainer(resolution, cfg.log_dir, lr=learning_rate, log_interval=cfg.log_interval, lambda1=0.1)
+    trainer = model.Trainer(resolution, cfg.log_dir, 
+                            lr=learning_rate, log_interval=cfg.log_interval,
+                            lambda1=0.1, dropout_rate=cfg.dropout_rate)
 
     onnx_path = os.path.join(cfg.model_dir, f'{cfg.model_name}.onnx')
     ckpt_path = os.path.join(cfg.model_dir, f'{cfg.model_name}.torch')

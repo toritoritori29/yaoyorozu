@@ -50,7 +50,7 @@ export class Detect {
       return expandDims(img_tensor);
     });
 
-    const [regmap, heatmap] = this.model.execute(batched) as Tensor[];
+    const [heatmap, regmap, vecmap] = this.model.execute(batched) as Tensor[];
     const [prob, result] = this.decode(heatmap, regmap);
     let r = result as number[][];
     if (result) {

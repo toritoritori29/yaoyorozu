@@ -12,13 +12,13 @@ import utils
 
 
 class PaperNet(nn.Module):
-    def __init__(self):
+    def __init__(self, dropout_rate):
         super(PaperNet, self).__init__()
 
         self.layer1 = nn.Sequential(
             nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, padding=1),
         )
-        self.layer2 = Hourglass(4, 32, 1.5)
+        self.layer2 = Hourglass(4, 32, 1.5, dropout_rate=dropout_rate)
 
         self.hmap = nn.Sequential(
             nn.Conv2d(in_channels=32, out_channels=4, kernel_size=3, padding=1),
@@ -44,7 +44,7 @@ class Residual(nn.Module):
     """ Bottleneck Residual Module
     """
 
-    def __init__(self, inp_dims, out_dims, dropout_ratio=0.3):
+    def __init__(self, inp_dims, out_dims, dropout_rate=0.3):
         super(Residual, self).__init__()
         bottleneck_size = out_dims//2
         self.relu = nn.ReLU()
@@ -53,7 +53,7 @@ class Residual(nn.Module):
         self.bn2 = nn.BatchNorm2d(bottleneck_size)
         self.conv2 = nn.Conv2d(bottleneck_size, bottleneck_size, 3, padding=1)
         self.bn3 = nn.BatchNorm2d(bottleneck_size)
-        self.dr = nn.Dropout2d(dropout_ratio)
+        self.dr = nn.Dropout2d(dropout_rate)
         self.conv3 = nn.Conv2d(bottleneck_size, out_dims, 1)
 
         if inp_dims == out_dims:
@@ -85,19 +85,19 @@ class Hourglass(nn.Module):
     https://github.com/princeton-vl/pytorch_stacked_hourglass/blob/master/models/layers.py
     """
 
-    def __init__(self, depth, channel_size, increase_ratio=1):
+    def __init__(self, depth, channel_size, increase_ratio=1, dropout_rate=0.3):
         super(Hourglass, self).__init__()
-        self.up1 = Residual(channel_size, channel_size)
+        self.up1 = Residual(channel_size, channel_size, dropout_rate=dropout_rate)
         self.pool = nn.MaxPool2d(2, 2)
 
         # Recursive Hourglass Layer
         next_channel = int(channel_size * increase_ratio)
-        self.low1 = Residual(channel_size, next_channel)
+        self.low1 = Residual(channel_size, next_channel, dropout_rate=dropout_rate)
         if depth > 1:
-            self.low2 = Hourglass(depth-1, next_channel)
+            self.low2 = Hourglass(depth-1, next_channel, dropout_rate=dropout_rate)
         else:
             self.low2 = None
-        self.low3 = Residual(next_channel, channel_size)
+        self.low3 = Residual(next_channel, channel_size, dropout_rate=dropout_rate)
         self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
 
     def forward(self, x):
@@ -115,11 +115,12 @@ class Trainer():
     TAG_EDGES = "EDGES"
     TAG_HEATMAP = "HEATMAP"
 
-    def __init__(self, input_resolution, log_dir, lr, log_interval, lambda1):
+    def __init__(self, input_resolution, log_dir, lr, log_interval, lambda1, dropout_rate):
         self.input_resolution = input_resolution
         self.lr = lr
         self.log_interval = log_interval
         self.lambda1 = lambda1
+        self.dropout_rate = dropout_rate
 
         # Constants
         self.focal_loss_alpha = 2
@@ -128,7 +129,7 @@ class Trainer():
 
         # Setup model.
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model = PaperNet().to(self.device)
+        self.model = PaperNet(dropout_rate=dropout_rate).to(self.device)
 
         # Setup model components.
         self.loss_fn = loss_fn
@@ -224,7 +225,7 @@ class Trainer():
     def to_onnx(self, output_dir):
         dummy_input = torch.randn(1, 3, self.input_resolution[0], self.input_resolution[1])
         input_names = ["inputs"]
-        output_names = ["heatmap", "regs"]
+        output_names = ["heatmap", "regmap", "vecmap"]
         torch.onnx.export(self.model, dummy_input, output_dir, input_names=input_names, output_names=output_names, opset_version=11)
 
 class Predictor:
